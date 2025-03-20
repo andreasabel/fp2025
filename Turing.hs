@@ -1,6 +1,7 @@
 module Turing where
 
 import Control.Applicative( (<|>) )
+import Data.Maybe
 
 ------------------------------------------------------------------
 -- a Symbol is what is written on the tape
@@ -31,12 +32,14 @@ states = [minBound .. maxBound]
 type Tape = ([Symbol],[Symbol])
 
 tape0 :: Tape
-tape0 = ([], repeat O)
+tape0 = ([], [])
 
-look :: Tape -> Symbol
-look (_, x:_) = x
+look :: Tape -> Maybe Symbol
+look (_, x:_) = Just x
+look (_, [] ) = Nothing
 
 write :: Symbol -> Tape -> Tape
+write x (ls, [])   = (ls, [x])
 write x (ls, _:rs) = (ls, x:rs)
 
 -- we can move (L)eft or (R)ight on a Tape
@@ -51,11 +54,16 @@ move :: Dir -> Tape -> Tape
 move L (  [],   rs) = (  [],   rs) -- bouncing
 move L (x:ls,   rs) = (  ls, x:rs)
 move R (  ls, x:rs) = (x:ls,   rs)
+move R (  ls,   []) = (O:ls,   [])
 
 ------------------------------------------------------------------
 -- a Config is a pair of a state and a tape
 
-type Config = (State,Tape)
+data Config = Config
+  { cState :: !State
+  , cTape  :: !Tape
+  , cFallR :: !Bool  -- ^ Falling off on the right hand side.
+  }
 
 -- a Rule describes what should happen if
 -- we are in a given state and read a given symbol;
@@ -65,9 +73,12 @@ data Rule = (State, Symbol) :-> (State, Symbol, Dir)
   deriving ( Eq, Ord, Show )
 
 rule :: Rule -> Config -> Maybe Config
-rule ((s0,x0) :-> (s1,x1,d)) (s, tape)
-  | s0 == s && x0 == look tape = Just (s1, move d (write x1 tape))
-  | otherwise                  = Nothing
+rule ((s0,x0) :-> (s1,x1,d)) (Config s tape _)
+  | s0 == s
+  , let mx = look tape
+  , x0 == fromMaybe O mx =
+      Just $ Config s1 (move d $ write x1 tape) (isNothing mx && s0 == s1)
+  | otherwise = Nothing
 
 rules :: [Rule] -> Config -> Maybe Config
 rules rls conf = foldr (<|>) Nothing [ rule r conf | r <- rls ]
@@ -81,7 +92,7 @@ run rls n conf = n `seq` case rules rls conf of
                            Just conf' -> run rls (n+1) conf'
 
 vizrun :: Int -> [Rule] -> Int -> Config -> IO (Int, Config)
-vizrun w rls n conf@(s, (ls, rs)) =
+vizrun w rls n conf@(Config s (ls, rs) _) =
   n `seq`
   do putStrLn $ take w
        $ concat [ " " ++ show x ++ " " | x <- reverse ls ]
@@ -92,12 +103,15 @@ vizrun w rls n conf@(s, (ls, rs)) =
        Just conf' -> vizrun w rls (n+1) conf'
 
 score :: [Rule] -> Int
-score rs = fst (run rs 0 (A,tape0))
+score rs = fst $ run rs 0 initConfig
+
+initConfig :: Config
+initConfig = Config A tape0 False
 
 ------------------------------------------------------------------
 
 main :: IO ()
-main = vizrun 80 example 0 (A,tape0) >>= print . fst
+main = vizrun 80 example 0 initConfig >>= print . fst
 
 example :: [Rule]
 example = [ (A,O) :-> (B,I,R)

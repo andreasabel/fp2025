@@ -1,7 +1,7 @@
 module Main where
 
 import Control.Monad
-import Control.Monad.State (StateT, execStateT, get, put)
+import Control.Monad.State (StateT, execStateT, get, gets, put, modify)
 import Control.Monad.IO.Class
 
 import Spine (allBeavers, beavers)
@@ -14,30 +14,43 @@ run fuel rls n conf
   | otherwise = n `seq`
       case rules rls conf of
         Nothing    -> (n, conf)
-        Just conf' -> run (fuel - 1) rls (n + 1) conf'
+        Just conf'
+          | cFallR conf' -> (-n, conf')
+          | otherwise    -> run (fuel - 1) rls (n + 1) conf'
 
 score :: Int -> [Rule] -> Int
-score fuel rs = fst (run fuel rs 0 (A,tape0))
+score fuel rs = fst $ run fuel rs 0 initConfig
+
+data Run = Run
+  { rBest :: !Int
+  , rFell :: !Integer
+  , rRuns :: !Integer
+  }
 
 main :: IO ()
 main = do
-  flip execStateT 0 $ do
+  Run best fellR count <- flip execStateT (Run 0 0 0) $ do
     forM_ (zip [0..] bs) \ (i, b) -> do
       let k = score fuel b
-      best <- get
+      best <- gets rBest
+      when (k < 0) $ modify \ (Run best fellR count) -> Run best (fellR + 1) count
       when (k < fuel && k > best) do
-        put k
-        liftIO $ printBeaver k i
+        modify \ (Run _ fellR count) -> Run k fellR count
+        liftIO $ printBeaver k i b
+      modify \ (Run best fellR count) -> Run best fellR (count + 1)
+  putStr $ unlines
+    [ unwords [ "Best:      ", show best ]
+    , unwords [ "Fell right:", show fellR ]
+    , unwords [ "Total:     ", show count ]
+    ]
   return ()
   where
-    n    = 4
-    fuel = 4000
+    (n, fuel) = (3,50) -- (4, 4000)
     bs   = beavers n
-    printBeaver k i = do
+    printBeaver k i b = do
       print (k, i)
-      let b = bs !! i
       mapM_ print b
-      vizrun 80 b 0 (A, tape0)
+      vizrun 200 b 0 initConfig
       return ()
 
 --   let (k, i) = maximum $ filter (\ (n, _) -> n < fuel) $ zipWith (\ i b -> (score fuel b, i)) [0..] bs
