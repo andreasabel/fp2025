@@ -87,9 +87,9 @@ finalized = \case
 -- pick :: St -> [(State, St)]
 pick :: StateT St List State
 pick = StateT \ st@(St h r u) -> concat
-  [ maybe [] (\ H -> [(H, St Nothing r u)]) h
-  , maybe [] (\ (s, ss) -> [(s, St h (s:r) ss)]) (uncons u)
+  [ maybe [] (\ (s, ss) -> [(s, St h (s:r) ss)]) (uncons u)
   , map (, st) r
+  , maybe [] (\ H -> [(H, St Nothing r u)]) h
   ]
 
 spines :: Int -> [Spine]

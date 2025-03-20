@@ -62,6 +62,7 @@ move R (  ls,   []) = (O:ls,   [])
 data Config = Config
   { cState :: !State
   , cTape  :: !Tape
+  , cFallL :: !Bool  -- ^ Stuck on the lhs.
   , cFallR :: !Bool  -- ^ Falling off on the right hand side.
   }
 
@@ -73,11 +74,15 @@ data Rule = (State, Symbol) :-> (State, Symbol, Dir)
   deriving ( Eq, Ord, Show )
 
 rule :: Rule -> Config -> Maybe Config
-rule ((s0,x0) :-> (s1,x1,d)) (Config s tape _)
+rule ((s0,x0) :-> (s1,x1,d)) (Config s tape _ _)
   | s0 == s
   , let mx = look tape
-  , x0 == fromMaybe O mx =
-      Just $ Config s1 (move d $ write x1 tape) (isNothing mx && s0 == s1)
+  , x0 == fromMaybe O mx
+  , let same = s0 == s1
+  = Just $ Config s1 (move d $ write x1 tape)
+      (null (fst tape) && same && x0 == x1 && d == L)
+      (isNothing mx && same)
+
   | otherwise = Nothing
 
 rules :: [Rule] -> Config -> Maybe Config
@@ -92,7 +97,7 @@ run rls n conf = n `seq` case rules rls conf of
                            Just conf' -> run rls (n+1) conf'
 
 vizrun :: Int -> [Rule] -> Int -> Config -> IO (Int, Config)
-vizrun w rls n conf@(Config s (ls, rs) _) =
+vizrun w rls n conf@(Config s (ls, rs) _ _) =
   n `seq`
   do putStrLn $ take w
        $ concat [ " " ++ show x ++ " " | x <- reverse ls ]
@@ -106,7 +111,7 @@ score :: [Rule] -> Int
 score rs = fst $ run rs 0 initConfig
 
 initConfig :: Config
-initConfig = Config A tape0 False
+initConfig = Config A tape0 False False
 
 ------------------------------------------------------------------
 
