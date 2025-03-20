@@ -1,0 +1,16 @@
+name: beaver
+
+executable:
+  source-dirs: .
+  main: Run.hs
+
+dependencies:
+- base
+- containers
+- mtl
+
+language: GHC2021
+
+default-extensions:
+- BlockArguments
+- LambdaCase

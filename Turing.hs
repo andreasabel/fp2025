@@ -1,4 +1,4 @@
-module Main where
+module Turing where
 
 import Control.Applicative( (<|>) )
 
@@ -7,11 +7,21 @@ import Control.Applicative( (<|>) )
 -- a State is the value of the internal state of a machine
 
 data Symbol = O | I deriving ( Eq, Ord )
-data State  = A | B | C | D | E | F | H deriving ( Eq, Ord, Show )
+data State  = A | B | C | D | E | F | H deriving ( Eq, Ord, Show, Enum, Bounded )
 
 instance Show Symbol where
   show O = "-"
   show I = "x"
+
+inv :: Symbol -> Symbol
+inv O = I
+inv I = O
+
+symbols :: [Symbol]
+symbols = [O, I]
+
+states :: [State]
+states = [minBound .. maxBound]
 
 ------------------------------------------------------------------
 -- a Tape is a pair of lists
@@ -33,6 +43,9 @@ write x (ls, _:rs) = (ls, x:rs)
 
 data Dir = L | R
   deriving ( Eq, Ord, Show )
+
+directions :: [Dir]
+directions = [L, R]
 
 move :: Dir -> Tape -> Tape
 move L (  [],   rs) = (  [],   rs) -- bouncing
@@ -57,7 +70,7 @@ rule ((s0,x0) :-> (s1,x1,d)) (s, tape)
   | otherwise                  = Nothing
 
 rules :: [Rule] -> Config -> Maybe Config
-rules rls conf = foldr (<|>) Nothing [ rule r conf | r <- rls ] 
+rules rls conf = foldr (<|>) Nothing [ rule r conf | r <- rls ]
 
 ------------------------------------------------------------------
 -- running a set of rules to completion
