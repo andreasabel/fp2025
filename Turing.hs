@@ -31,6 +31,9 @@ states = [minBound .. maxBound]
 
 type Tape = ([Symbol],[Symbol])
 
+tapeSize :: Tape -> Int
+tapeSize (xs, ys) = length xs + length ys
+
 tape0 :: Tape
 tape0 = ([], [])
 
@@ -62,8 +65,8 @@ move R (  ls,   []) = (O:ls,   [])
 data Config = Config
   { cState :: !State
   , cTape  :: !Tape
-  , cFallL :: !Bool  -- ^ Stuck on the lhs.
-  , cFallR :: !Bool  -- ^ Falling off on the right hand side.
+  , cBumpL :: !Int  -- ^ Consecutive hits of the left wall.
+  , cExtR  :: !Int  -- ^ Consecutive extensions of the tape on the right.
   }
 
 -- a Rule describes what should happen if
@@ -74,15 +77,13 @@ data Rule = (State, Symbol) :-> (State, Symbol, Dir)
   deriving ( Eq, Ord, Show )
 
 rule :: Rule -> Config -> Maybe Config
-rule ((s0,x0) :-> (s1,x1,d)) (Config s tape _ _)
+rule ((s0,x0) :-> (s1,x1,d)) (Config s tape nl nr)
   | s0 == s
   , let mx = look tape
   , x0 == fromMaybe O mx
-  , let same = s0 == s1
   = Just $ Config s1 (move d $ write x1 tape)
-      (null (fst tape) && same && x0 == x1 && d == L)
-      (isNothing mx && same)
-
+      (if null (fst tape) then nl + 1 else 0)
+      (if isNothing mx then nr + 1 else 0)
   | otherwise = Nothing
 
 rules :: [Rule] -> Config -> Maybe Config
@@ -111,20 +112,85 @@ score :: [Rule] -> Int
 score rs = fst $ run rs 0 initConfig
 
 initConfig :: Config
-initConfig = Config A tape0 False False
+initConfig = Config A tape0 0 0
 
 ------------------------------------------------------------------
 
 main :: IO ()
 main = vizrun 80 example 0 initConfig >>= print . fst
 
+exampleKoen :: [Rule]
+exampleKoen =
+  [ (A,O) :-> (B,I,R)
+  , (A,I) :-> (B,O,R)
+  , (B,O) :-> (C,O,R)
+  , (B,I) :-> (H,O,R)
+  , (C,O) :-> (C,I,L)
+  , (C,I) :-> (A,I,R)
+  ]
+
+-- 3 states, 45 steps
+example3 :: [Rule]
+example3 =
+  [ (A,O) :-> (B,O,L)
+  , (B,O) :-> (C,I,R)
+  , (C,O) :-> (A,I,L)
+  , (A,I) :-> (C,I,L)
+  , (B,I) :-> (H,O,L)
+  , (C,I) :-> (C,O,R)
+  ]
+
+-- 4 states,
+example4' :: [Rule]
+example4' =
+  [ (A,O) :-> (B,I,L)
+  , (B,O) :-> (C,I,L)
+  , (C,O) :-> (D,O,L)
+  , (D,O) :-> (A,I,L)
+  , (A,I) :-> (A,I,R)
+  , (B,I) :-> (B,O,R)
+  , (C,I) :-> (H,O,L)
+  , (D,I) :-> (B,O,R)
+  ]
+
+example4_959 :: [Rule]
+example4_959 =
+  [ (A,O) :-> (B,O,R)
+  , (B,O) :-> (B,I,L)
+  , (C,O) :-> (A,O,R)
+  , (D,O) :-> (H,O,L)
+  , (A,I) :-> (A,I,R)
+  , (B,I) :-> (C,O,L)
+  , (C,I) :-> (D,I,L)
+  , (D,I) :-> (A,O,R)
+  ]
+
+-- 4 states, 3544
+example4 :: [Rule]
+example4 =
+  [ (A,O) :-> (B,O,R)
+  , (B,O) :-> (C,O,R)
+  , (C,O) :-> (C,I,L)
+  , (D,O) :-> (H,O,L)
+  , (A,I) :-> (B,I,R)
+  , (B,I) :-> (D,O,R)
+  , (C,I) :-> (A,O,L)
+  , (D,I) :-> (A,O,R)
+  ]
+
+-- 5 states, 3240 steps
 example :: [Rule]
-example = [ (A,O) :-> (B,I,R)
-          , (A,I) :-> (B,O,R)
-          , (B,O) :-> (C,O,R)
-          , (B,I) :-> (H,O,R)
-          , (C,O) :-> (C,I,L)
-          , (C,I) :-> (A,I,R)
-          ]
+example =
+  [ (A,O) :-> (B,I,R)
+  , (B,O) :-> (C,O,R)
+  , (C,O) :-> (D,O,R)
+  , (D,O) :-> (E,O,L)
+  , (E,O) :-> (E,I,L)
+  , (A,I) :-> (E,I,L)
+  , (B,I) :-> (E,I,R)
+  , (C,I) :-> (B,O,R)
+  , (D,I) :-> (H,O,L)
+  , (E,I) :-> (A,O,L)
+  ]
 
 ------------------------------------------------------------------

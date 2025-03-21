@@ -1,4 +1,23 @@
 
+Discarding unbalanced actions
+
+λ> print $ length $ actions 5
+63504
+λ> print $ length $ spines 5
+300004
+λ> 300004 * 63504
+19.051.454.016
+
+
+λ> print $ length $ spines 4
+9649
+λ> print $ length $ actions 4
+4900
+λ> 9649 * 4900
+47.280.100
+
+
+
 1 	 2 			 8 					 32 			 25
 2 	 22 		 1.408 				 4096 			 6.561
 3 	 393 		 402.432 			 884736 		 4.826.809

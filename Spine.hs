@@ -41,9 +41,29 @@ allBeavers n = do
 
 beavers :: Int -> [Machine]
 beavers n = do
-  sp  <- spines n
+  sp   <- spines n
+  -- reduces to 25%, but loses solutions:
+  -- acts <- actions n
+  -- return $ zipSpine sp acts
   dat <- forM sp $ (\ (_,t) -> if t == H then return (O,L) else liftM2 (,) symbols directions)
   return $ zipWith (\ ((s,i),t) (o,d) -> (s,i) :-> (t,o,d)) sp dat
+
+zipSpine :: Spine -> Actions -> Machine
+zipSpine [] _ = []
+zipSpine (((s,i),H) : sp) acts           = ((s,i) :-> (H,O,L)) : zipSpine sp acts
+zipSpine (((s,i),t) : sp) ((o,d) : acts) = ((s,i) :-> (t,o,d)) : zipSpine sp acts
+
+type Actions = [(Symbol,Dir)]
+
+-- n-1 actions, balanced
+actions :: Int -> [Actions]
+actions n = do
+  as <- replicateM (2 * n - 1) $ liftM2 (,) symbols directions
+  let is = length $ filter ((I ==) . fst) as
+  guard (is >= n - 1 && is <= n)
+  let ls = length $ filter ((L ==) . snd) as
+  guard (ls >= n - 1 && ls <= n)
+  return as
 
 sources :: Int -> [(State,Symbol)]
 sources n = do
