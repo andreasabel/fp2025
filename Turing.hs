@@ -1,14 +1,16 @@
 module Turing where
 
 import Control.Applicative( (<|>) )
+
+import Data.Array
 import Data.Maybe
 
 ------------------------------------------------------------------
 -- a Symbol is what is written on the tape
 -- a State is the value of the internal state of a machine
 
-data Symbol = O | I deriving ( Eq, Ord )
-data State  = A | B | C | D | E | F | H deriving ( Eq, Ord, Show, Enum, Bounded )
+data Symbol = O | I deriving ( Eq, Ord, Enum, Bounded, Ix )
+data State  = A | B | C | D | E | F | H deriving ( Eq, Ord, Show, Enum, Bounded, Ix )
 
 instance Show Symbol where
   show O = "-"
@@ -29,21 +31,21 @@ states = [minBound .. maxBound]
 -- the head is at the first element of the second list
 -- the first list is reversed
 
-type Tape = ([Symbol],[Symbol])
-
-tapeSize :: Tape -> Int
-tapeSize (xs, ys) = length xs + length ys
+data Tape = Tape
+  { tapeSize  :: !Int
+  , tapeLeft  :: ![Symbol]
+  , tapeRight :: ![Symbol]
+  }
 
 tape0 :: Tape
-tape0 = ([], [])
+tape0 = Tape 0 [] []
 
 look :: Tape -> Maybe Symbol
-look (_, x:_) = Just x
-look (_, [] ) = Nothing
+look = listToMaybe . tapeRight
 
 write :: Symbol -> Tape -> Tape
-write x (ls, [])   = (ls, [x])
-write x (ls, _:rs) = (ls, x:rs)
+write x (Tape n ls [])     = Tape (n+1) ls [x]     -- growing
+write x (Tape n ls (_:rs)) = Tape n     ls (x:rs)
 
 -- we can move (L)eft or (R)ight on a Tape
 
@@ -54,10 +56,11 @@ directions :: [Dir]
 directions = [L, R]
 
 move :: Dir -> Tape -> Tape
-move L (  [],   rs) = (  [],   rs) -- bouncing
-move L (x:ls,   rs) = (  ls, x:rs)
-move R (  ls, x:rs) = (x:ls,   rs)
-move R (  ls,   []) = (O:ls,   [])
+move L t@(Tape n []        rs ) = t -- bouncing
+move L   (Tape n (x:ls)    rs ) = Tape n ls (x:rs)
+move R   (Tape n    ls  (x:rs)) = Tape n (x:ls) rs
+-- Impossible:
+-- move R   (Tape n    ls     [] ) = Tape (n+1) (O:ls) [] -- growing
 
 ------------------------------------------------------------------
 -- a Config is a pair of a state and a tape
@@ -82,7 +85,7 @@ rule ((s0,x0) :-> (s1,x1,d)) (Config s tape nl nr)
   , let mx = look tape
   , x0 == fromMaybe O mx
   = Just $ Config s1 (move d $ write x1 tape)
-      (if null (fst tape) then nl + 1 else 0)
+      (if null (tapeLeft tape) then nl + 1 else 0)
       (if isNothing mx then nr + 1 else 0)
   | otherwise = Nothing
 
@@ -98,7 +101,7 @@ run rls n conf = n `seq` case rules rls conf of
                            Just conf' -> run rls (n+1) conf'
 
 vizrun :: Int -> [Rule] -> Int -> Config -> IO (Int, Config)
-vizrun w rls n conf@(Config s (ls, rs) _ _) =
+vizrun w rls n conf@(Config s (Tape _ ls rs) _ _) =
   n `seq`
   do putStrLn $ take w
        $ concat [ " " ++ show x ++ " " | x <- reverse ls ]
@@ -117,7 +120,7 @@ initConfig = Config A tape0 0 0
 ------------------------------------------------------------------
 
 main :: IO ()
-main = vizrun 80 example 0 initConfig >>= print . fst
+main = vizrun 160 example 0 initConfig >>= print . fst
 
 exampleKoen :: [Rule]
 exampleKoen =
@@ -179,8 +182,56 @@ example4 =
   ]
 
 -- 5 states, 3240 steps
-example :: [Rule]
-example =
+example5_668 :: [Rule]
+example5_668 =
+  [ (A,O) :-> (B,O,L)
+  , (B,O) :-> (C,I,R)
+  , (C,O) :-> (D,O,R)
+  , (D,O) :-> (E,I,L)
+  , (E,O) :-> (E,O,L)
+  , (A,I) :-> (E,I,L)
+  , (B,I) :-> (H,O,L)
+  , (C,I) :-> (A,O,R)
+  , (D,I) :-> (B,O,R)
+  , (E,I) :-> (C,I,L)
+  ]
+
+example5_11220 :: [Rule]
+example5_11220 =
+  [ (A,O) :-> (B,I,L)
+  , (B,O) :-> (C,O,L)
+  , (C,O) :-> (D,I,L)
+  , (D,O) :-> (D,I,L)
+  , (E,O) :-> (D,O,R)
+  , (A,I) :-> (B,I,L)
+  , (B,I) :-> (E,O,R)
+  , (C,I) :-> (H,O,L)
+  , (D,I) :-> (A,O,L)
+  , (E,I) :-> (E,I,R)
+  ]
+
+-- 5 states, 71076 steps
+example5_71076 :: [Rule]
+example5_71076 =
+  [ (A,O) :-> (B,O,L)
+  , (B,O) :-> (C,O,R)
+  , (C,O) :-> (D,I,R)
+  , (D,O) :-> (E,I,R)
+  , (E,O) :-> (E,I,L)
+  , (A,I) :-> (D,O,R)
+  , (B,I) :-> (E,O,L)
+  , (C,I) :-> (C,O,L)
+  , (D,I) :-> (H,O,L)
+  , (E,I) :-> (A,O,L)
+  ]
+
+example = example5_71076
+
+
+
+-- 5 states, 3240 steps
+example5_3240 :: [Rule]
+example5_3240 =
   [ (A,O) :-> (B,I,R)
   , (B,O) :-> (C,O,R)
   , (C,O) :-> (D,O,R)

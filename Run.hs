@@ -4,23 +4,45 @@ import Control.Monad
 import Control.Monad.State (StateT, execStateT, get, gets, put, modify)
 import Control.Monad.IO.Class
 
+import Data.Array
+
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
+
+import Data.Maybe
 
 import Data.Time
 import Data.Time.Format
 
 import Spine (allBeavers, beavers)
-import Turing hiding (run, score, main)
+import Turing hiding (run, score, main, rule, rules)
+
+type Ind = (State, Symbol)
+type Dat = (State, Symbol, Dir)
+type TM = Array Ind Dat
+
+compile :: [Rule] -> TM
+compile rls = array (minBound, maxBound) $ map (\ (r :-> l) -> (r,l)) rls
+
+rules :: TM -> Config -> Maybe Config
+rules _  (Config H _ _ _) = Nothing
+rules tm (Config s0 tape nl nr) = do
+  let mx        = look tape
+  let x0        = fromMaybe O mx
+  let (s1,x1,d) = tm ! (s0, x0)
+  let tape'     = move d $ write x1 tape
+  let nl'       = if null (tapeLeft tape') then nl + 1 else 0
+  let nr'       = if isNothing mx then nr + 1 else 0
+  Just $ Config s1 tape' nl' nr'
 
 -- | Running for a certain number of steps
 run :: [Rule] -> Int -> Int -> Config -> (Int, Config)
 run rls fuel0 = loop fuel0
   where
-    loop fuel n conf
+    loop !fuel !n conf
       | fuel <= 0 = (n, conf)
-      | otherwise = n `seq`
-          case rules rls conf of
+      | otherwise =
+          case rules tm conf of
             Nothing    -> (n, conf)
             Just conf'@(Config _ _ nl nr)
               | nl >= numRules             -> kill
@@ -29,6 +51,7 @@ run rls fuel0 = loop fuel0
               | otherwise -> loop (fuel - 1) (n + 1) conf'
               where
                 kill = (-n, conf')
+    tm = compile rls
     numRules = length rls
     ns = numRules `div` 2
     check = max 1 (fuel0 `div` 100)
@@ -106,16 +129,18 @@ main = do
   printRun run
   return ()
   where
-    (n, fuel, ndrop) = (5, 100000, 100000000) -- (4, 10000, 0) -- (3,100,0) --
+    (n, fuel, ndrop) = (5, 1000000, 5000000000) -- (4, 4000, 0) -- (5, 1000000, 1000000000) -- (4, 10000, 0) -- (3,100,0) --
     bs = drop ndrop $ beavers n
     printBeaver k i b tape = do
       putStrLn $ unwords [ "Candidate nr.", show i ]
       mapM_ print b
-      vizrun 200 b 0 initConfig
+      -- vizrun 200 b 0 initConfig
+      putStr $ unlines $ replicate 3 $ replicate 20 '@'
       putStr $ unlines
         [ unwords [ "Steps:    ", show k    ]
         , unwords [ "Tape used:", show tape ]
         ]
+      putStr $ unlines $ replicate 2 $ replicate 20 '@'
       return ()
 
 --   let (k, i) = maximum $ filter (\ (n, _) -> n < fuel) $ zipWith (\ i b -> (score fuel b, i)) [0..] bs
