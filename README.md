@@ -32,7 +32,7 @@ winner =
   , (E,I) :-> (A,O,L)
   ]
 ```
-(The busiest beaver will likely run for 100 million steps!)
+(The busiest beaver with 5 states will likely run for at least 100 million steps!)
 
 Enumerating Beavers
 ===================
