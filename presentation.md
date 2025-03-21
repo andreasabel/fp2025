@@ -2,18 +2,51 @@
 title: Busy Beaver on a One-Sided Tape
 author: Andreas Abel
 date: 2025-03-21
-----
+---
+
+Puzzle posed by Koen Claessen during the 2025 Chalmers/GU retreat of the **Functional Programming** group of the Department of Computer Science and Engineering, held 19-21 March 2025 in Nääs Fabriken (Tollered).
+
+https://github.com/koengit/fp2025
+
+Consider Turing Machine with a one-side infinite tape.
+You can walk as far to the right as you want.
+Yet if you are at the beginning of the tape and try to go further left, you just stay where you are.
+
+**Find busy beavers with up to 6 states** (6 is already hopeless...).
+
+There was a 48 hour window to post entries.
+
+In the end, I beat Ulf Norell (~40000 steps) by a small margin with a 5 state beaver that runs for 71076 steps.
+```haskell
+winner :: [Rule]
+winner =
+  [ (A,O) :-> (B,O,L)
+  , (B,O) :-> (C,O,R)
+  , (C,O) :-> (D,I,R)
+  , (D,O) :-> (E,I,R)
+  , (E,O) :-> (E,I,L)
+  , (A,I) :-> (D,O,R)
+  , (B,I) :-> (E,O,L)
+  , (C,I) :-> (C,O,L)
+  , (D,I) :-> (H,O,L)
+  , (E,I) :-> (A,O,L)
+  ]
+```
+(The busiest beaver will likely run for 100 million steps!)
 
 Enumerating Beavers
 ===================
 
-Number of beavers: _n×2 → 1+n×2×2_ which is _(4n + 1)²ⁿ_.
-For `n=5` this is 16 trillion.
+Number of Beavers (Turing machines) with _n_ states `A,B,...` and a halting state `H`:
+_n×2 → 1+n×2×2_ which is _(4n + 1)²ⁿ_.
+For _n = 5_ this is around 16 trillion, way too many to try all.
+
+So let us focus on the interesting ones!
 
 Spines
 ------
 
-Criterium: Use all states.
+Criteria: Avoid permutations of state names. Use all states.
 
 1. All states reachable from `(A,O)`.
 2. Halting state `H` reachable from all states.
@@ -21,63 +54,88 @@ Criterium: Use all states.
 
 Implementation: First enumerate _spines_ `(s,i) :-> (t,_,_)`.
 
-A priori `(n + 1)^2n` spines, for `n=5` this is `6¹⁰` (60 million) spines.
+A priori _(n + 1)²ⁿ_ spines, for _n = 5_ this is `6¹⁰` (60 million) spines.
 
 - Divide states in _reached from `A`_ and _not yet used_.
 
-- When assigning each of the `2n` targets either:
+- When assigning each of the _2n_ targets either:
   1. pick the next _unused_ state and move it to _reached_,
   2. pick an already reached state,
   3. pick `H` and mark it as unavailable for future picks.
 
-- When spine is complete, discard it if `H` is not reachable from some state.
+```haskell
+-- | State of the spine constructor.
+data St = St
+  { halting    :: Maybe State
+      -- ^ @Nothing@ or @Just H@.
+  , reachable  :: List State
+      -- ^ Non-empty list, initialized to the start state @A@.
+  , untargeted :: List State
+      -- ^ Opposite of @reachable@, initialized to @[B .. E]@ (for the 5 state beaver).
+  }
 
-For `n=5` we are down to 300.004 spines (0.5%)!
+-- pick :: St -> [(State, St)]
+pick :: StateT St List State
+pick = StateT \ st@(St h r u) -> concat
+  [ maybe [] (\ (s, ss) -> [(s, St h (s:r) ss)]) (uncons u)
+  , map (, st) r
+  , maybe [] (\ H -> [(H, St Nothing r u)]) h
+  ]
+```
+
+- When spine is complete, discard it if `H` is not reachable from some state.
+  (Implemented with `Data.Graph.reachable` from `containers` package.)
+
+For _n=5_ we are down to 300.004 spines (0.5%)!
 
 Actions
 -------
 
-Fill rule skeleton `(s,i) :-> (t,_,_)` with actions output `o` and direction `h`.
+Fill rule skeleton `(s,i) :-> (t,_,_)` with actions output `o` and direction `d`.
 Does not matter for halting state `t=H`.
-So `(2n-1)⁴` possibilities, for `n=5` this is `9⁴ = 6561`.
+So _(2n-1)⁴_ possibilities.
+For _n = 5_ this is _4⁹ = 262.144_, so around ¼ million beavers sharing a spine.
 
-Considered:
-~~Rule out unbalanced actions (e.g. many more `I` than `O` or `L` than `R`).~~
+Considered: ~~Rule out unbalanced actions (e.g. many more `I` than `O` or `L` than `R`).~~
 
 Number of Beavers
 -----------------
 
-| n | spines | candidates     | total beavers      |
-|---|--------|----------------|--------------------|
-| 1 |      2 |              8 |                 25 |
-| 2 |     22 |          1.408 |              6.561 |
-| 3 |    393 |        402.432 |          4.826.809 |
-| 4 |   9649 |    158.089.216 |      6.975.757.441 |
-| 5 | 300004 | 78.644.248.576 | 16.679.880.978.201 |
+| n | spines |  interesting     | total beavers      |
+|--:|-------:|-----------------:|-------------------:|
+| 1 |      2 |               8  |                 25 |
+| 2 |     22 |           1.408  |              6.561 |
+| 3 |    393 |         402.432  |          4.826.809 |
+| 4 |   9649 |     158.089.216  |      6.975.757.441 |
+| 5 | 300004 |**78.644.248.576**| 16.679.880.978.201 |
+
+78 billion is still a lot of candidates to try out!
 
 
 Eliminating non-terminating beavers
 ===================================
 
-Run beaver to a maximum number of steps (fuel).
+Limit beaver to a maximum number of steps (its fuel).
 
 Kill beaver when it:
-1. runs out of fuel
-2. gets stuck on the left wall
-3. runs off to the right infinity
-4. doesn't get anywhere
+1. runs out of fuel,
+2. gets stuck on the left wall,
+3. runs off to the right infinity, or
+4. doesn't get anywhere.
 
 Implementation:
 1. Count down.
-2. If you have hit the wall _2n_ times, you'll do it forever.
-3. (ditto)
+2. If you have hit the wall _2n_ times in a row, you'll do it forever,
+   because none of the states got you away from it.
+3. If you have extended the tape to the right _2n_ times in a row, you'll do that forever.
 4. If you have visited only few different cells for a long time, you'll be stuck with them forever.
 
 Ad 4.
-The information of a configuration with _k_ visited cells is _2ᵏ·k·n_.
+The information of a configuration with _k_ visited tape cells is _2ᵏ·k·n_.
+Breakdown: _k_ coded bits, _k_ head positions, _n_ TM states.
 If your number of steps exceeds this, you are in a cycle!
 
-We to refine `Tape` and `Config`.
+To implement these early termination conditions we have to refine `Tape` and `Config`.
 
 (Koen's implementation of the tape as `([], repeat O)` shows a very lazy programmer.)
 
@@ -91,19 +149,21 @@ data Tape = Tape
 data Config = Config
   { cState :: !State
   , cTape  :: !Tape
-  , cBumpL :: !Int  -- ^ Consecutive hits of the left wall.
-  , cExtR  :: !Int  -- ^ Consecutive extensions of the tape on the right.
+  , cBumpL :: !Int
+     -- ^ Consecutive hits of the left wall.
+  , cExtR  :: !Int
+     -- ^ Consecutive extensions of the tape on the right.
   }
 ```
 
 Run
 ===
 
-- Tried to beat Ulf's 7000 steps.
-- First found only ~3240 steps.
-- Set fuel to 100.000.
+- Tried to beat Ulf's ~7000 step BB'(5).
+- First found only one with ~3240 steps.
+- So I set fuel to 100.000.
 
-Search space is vast.  You need to be lucky!
+Search space is vast.  I guess I was lucky!
 ```
 2025-03-21 01:31:39 GMT
 
@@ -115,6 +175,14 @@ Fell right:     2030004
 Too many steps: 525156
 Out of fuel:    503033
 Total:          7870656
+```
+We tried around 8 million candidates.
+We only had to run 0.5 million to the time out (100.000 steps).
+3.5 million were eliminated by our loop-checking criteria.
+The others terminated regularly.
+
+Terminating beaver breakdown at this point.
+```
 262144 terminated in 2 steps
 245760 terminated in 3 steps
 880640 terminated in 4 steps
@@ -245,8 +313,10 @@ Total:          7870656
 1 terminated in 924 steps
 1 terminated in 71076 steps
 ```
+The 71076 looked like a lucky shot into the search space.
 
-Example:
+
+Another run of 2 million candidates showing effectiveness (somewhat) of loop checkers:
 ```
 Best:           261
 Stuck left:     352363
