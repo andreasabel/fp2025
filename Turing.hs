@@ -196,6 +196,20 @@ example5_668 =
   , (E,I) :-> (C,I,L)
   ]
 
+example5_1117 :: [Rule]
+example5_1117 =
+  [ (A,O) :-> (B,O,L)
+  , (B,O) :-> (C,I,R)
+  , (C,O) :-> (D,I,R)
+  , (D,O) :-> (E,I,L)
+  , (E,O) :-> (E,I,R)
+  , (A,I) :-> (A,O,R)
+  , (B,I) :-> (H,O,L)
+  , (C,I) :-> (D,O,L)
+  , (D,I) :-> (A,I,L)
+  , (E,I) :-> (C,O,L)
+  ]
+
 example5_11220 :: [Rule]
 example5_11220 =
   [ (A,O) :-> (B,I,L)

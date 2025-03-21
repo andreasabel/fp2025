@@ -129,7 +129,7 @@ main = do
   printRun run
   return ()
   where
-    (n, fuel, ndrop) = (5, 1000000, 5000000000) -- (4, 4000, 0) -- (5, 1000000, 1000000000) -- (4, 10000, 0) -- (3,100,0) --
+    (n, fuel, ndrop) = (5, 1000000, 50000000) -- (4, 4000, 0) -- (5, 1000000, 1000000000) -- (4, 10000, 0) -- (3,100,0) --
     bs = drop ndrop $ beavers n
     printBeaver k i b tape = do
       putStrLn $ unwords [ "Candidate nr.", show i ]
